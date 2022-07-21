@@ -14,7 +14,7 @@ import selectItems
 load_dotenv()
 app = Flask(__name__)
 
-client = MongoClient("mongodb+srv://dishiadmin:d1sh1adm1n@cluster0.pjb3s.mongodb.net/?retryWrites=true&w=majority", tlsCAFile=certifi.where())
+client = MongoClient(os.getenv("MONGO_URL"), tlsCAFile=certifi.where())
 db = client.dishi
 saved_recipes = db.saved_recipes
 
