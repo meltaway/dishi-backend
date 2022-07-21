@@ -6,10 +6,12 @@ import requests
 import os
 import json
 from bson.json_util import dumps
+import re
 
 from dotenv import load_dotenv
 
 import selectItems
+from endpoints import BASE_URL, RECIPE_URL
 
 load_dotenv()
 app = Flask(__name__)
@@ -21,6 +23,8 @@ saved_recipes = db.saved_recipes
 file = open('ingredients.json')
 ingredients = json.load(file)
 
+recipeIdRegex = '(?<=\/)[a-zA-Z0-9]{32}(?=\?)'
+
 def parse_json(data):
   return json.loads(dumps(data))
 
@@ -30,16 +34,16 @@ def index():
 
 @app.get('/recipes')
 def getRecipeList():
-	params = 'type=public&q=chicken' # request.args 
-	url = f'{os.getenv("API_URL")}?{params}&app_id={os.getenv("APP_ID")}&app_key={os.getenv("APP_KEY")}'
+	params = 'q=chicken' # request.args 
+	url = f'{BASE_URL}&{params}'
 	response = requests.get(url)
 	return response.json()
 
-@app.get('/select/health') # INGREDIENTS, HEALTH_LABELS, DIET_LABELS
+@app.get('/select/health')
 def showHealthOptions():
   return jsonify(ingredients=ingredients['list'], health_labels=selectItems.HEALTH_LABELS, diet_labels=selectItems.DIET_LABELS)
 
-@app.get('/select/properties') # CUISINE_TYPES, DISH_TYPES, MEAL_TYPES
+@app.get('/select/properties')
 def showDishOptions():
   return jsonify(cuisine_types=selectItems.CUISINE_TYPES, dish_types=selectItems.DISH_TYPES, meal_types=selectItems.MEAL_TYPES)
 
@@ -50,12 +54,21 @@ def getSavedRecipesList():
 
 @app.get('/recipes/<id>')
 def getRecipe(id):
-	return 'Hello World!'
+	url = RECIPE_URL(id)
+	response = requests.get(url)
+	return response.json()
 
-@app.get('/recipes/<id>/save')
+@app.post('/recipes/<id>')
 def saveRecipe(id):
-	return 'Hello World!'
+	recipe = saved_recipes.find_one({"id": id})
+	if not recipe:
+		response = requests.get(RECIPE_URL(id))
+		recipe = response.json()
+		recipe_id = re.search(recipeIdRegex, recipe["_links"].self.href).group(0)
+		saved_recipes.insert({**recipe, "id": recipe_id})
+	return jsonify(recipe=parse_json(recipe))
 
-@app.get('/recipes/<id>/unsave')
+@app.delete('/recipes/<id>')
 def unsaveRecipe(id):
-	return 'Hello World!'
+	recipe = saved_recipes.find_one_and_delete({"id": id})
+	return jsonify(recipe=parse_json(recipe))
